@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target
+
+# Cargo lock is kept for binaries; uncomment to ignore for libraries
+# Cargo.lock
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment / local config
+.env
+.env.local
+
+# Release binaries built locally
+/fsy
+/fsy-*
