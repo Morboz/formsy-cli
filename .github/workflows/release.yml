@@ -19,15 +19,69 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-linux:
+    name: Build x86_64-unknown-linux-gnu (Ubuntu 20.04)
+    runs-on: ubuntu-latest
+    container: ubuntu:20.04
+    steps:
+      - name: Install build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl git pkg-config
+
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --locked --release --target x86_64-unknown-linux-gnu
+
+      - name: Verify Ubuntu 20.04 compatibility
+        shell: bash
+        run: |
+          binary="target/x86_64-unknown-linux-gnu/release/fsy"
+          max_glibc="$({ readelf --version-info "$binary" || true; } \
+            | grep -o 'GLIBC_[0-9][0-9.]*' \
+            | sort -Vu \
+            | tail -1)"
+          echo "Highest required GLIBC symbol version: ${max_glibc:-none}"
+          if [ -n "$max_glibc" ] && [ "$(printf '%s\n' "$max_glibc" GLIBC_2.31 | sort -V | tail -1)" != "GLIBC_2.31" ]; then
+            echo "::error::binary requires $max_glibc, newer than Ubuntu 20.04's GLIBC_2.31"
+            exit 1
+          fi
+
+      - name: Package Linux binary
+        shell: bash
+        run: |
+          archive="fsy-x86_64-unknown-linux-gnu.tar.gz"
+          tar -C target/x86_64-unknown-linux-gnu/release -czf "$archive" fsy
+          sha256sum "$archive" > "$archive.sha256"
+
+      - name: Upload packaged binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: fsy-x86_64-unknown-linux-gnu
+          path: |
+            fsy-x86_64-unknown-linux-gnu.tar.gz
+            fsy-x86_64-unknown-linux-gnu.tar.gz.sha256
+          if-no-files-found: error
+
   build:
     name: Build ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
           - runner: macos-15-intel
             target: x86_64-apple-darwin
             archive: tar.gz
@@ -84,7 +138,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
-    needs: build
+    needs: [build-linux, build]
     runs-on: ubuntu-latest
     steps:
       - name: Download packaged binaries
