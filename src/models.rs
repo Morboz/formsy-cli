@@ -198,8 +198,11 @@ pub struct CompileResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct QueryResponse {
+    #[serde(default)]
     pub repo_id: String,
+    #[serde(default)]
     pub revision: String,
+    #[serde(default)]
     pub query: String,
     #[serde(default)]
     pub extra_context: String,
@@ -218,4 +221,22 @@ pub struct QueryResponse {
     /// Kept as raw JSON so the CLI never breaks on server-side field additions.
     #[serde(flatten)]
     pub extra: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QueryResponse;
+
+    #[test]
+    fn query_response_reads_extra_context_from_minimal_response() {
+        let response: QueryResponse = serde_json::from_value(serde_json::json!({
+            "extra_context": "retrieved context"
+        }))
+        .expect("minimal query response should deserialize");
+
+        assert_eq!(response.extra_context, "retrieved context");
+        assert!(response.repo_id.is_empty());
+        assert!(response.revision.is_empty());
+        assert!(response.query.is_empty());
+    }
 }

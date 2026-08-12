@@ -1,6 +1,6 @@
 [package]
 name = "formsy-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Rust CLI client for formsy.server /api/v1/compile and /api/v1/query"
 license = "MIT"
