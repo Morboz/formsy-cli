@@ -3,7 +3,6 @@
 //!   - recursive glob by extension (default `*.py`)
 //!   - `path` is repo-relative posix
 //!   - `language = "python"` (or the extension itself for non-py)
-//!   - `is_test = "test" in filename.lower()`
 //!
 //! No `.gitignore` filtering — same as the Python reference, by design (simple + matches
 //! the e2e baseline).
@@ -17,10 +16,7 @@ use crate::models::SourceFilePayload;
 
 /// Collect every file under `root` whose extension is in `extensions` (lowercase, no dot,
 /// e.g. `["py"]`). Files are returned sorted by relative path for stable ordering.
-pub fn collect_source_files(
-    root: &Path,
-    extensions: &[String],
-) -> Result<Vec<SourceFilePayload>> {
+pub fn collect_source_files(root: &Path, extensions: &[String]) -> Result<Vec<SourceFilePayload>> {
     let root = root
         .canonicalize()
         .with_context(|| format!("repo-root {:?} does not exist", root))?;
@@ -61,15 +57,8 @@ pub fn collect_source_files(
             anyhow!("path {rel:?} is not valid UTF-8 (repo-relative posix required)")
         })?;
 
-        let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("failed to read {path:?}"))?;
-
-        let file_name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let is_test = file_name.contains("test");
+        let content =
+            std::fs::read_to_string(&path).with_context(|| format!("failed to read {path:?}"))?;
 
         let ext = path
             .extension()
@@ -86,7 +75,6 @@ pub fn collect_source_files(
             path: rel_posix.to_string(),
             content,
             language,
-            is_test,
         });
     }
 

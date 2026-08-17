@@ -14,11 +14,7 @@ pub struct GlobalArgs {
     pub base_url: String,
 
     /// API key sent as `Authorization: Bearer <KEY>` (omit to send none)
-    #[arg(
-        long,
-        global = true,
-        default_value = "fsy_test_key_dev_only_12345678"
-    )]
+    #[arg(long, global = true, default_value = "fsy_test_key_dev_only_12345678")]
     pub api_key: String,
 
     /// Per-request HTTP timeout in seconds
@@ -60,13 +56,25 @@ pub struct CompileInputArgs {
     #[arg(long)]
     pub revision: Option<String>,
 
-    /// Disable semantic ingestion (W2) for this compile
+    /// Stable upstream task identifier; requires --task-file
     #[arg(long)]
-    pub no_w2: bool,
+    pub task_id: Option<String>,
 
-    /// Optional user query that triggered an interactive compile
+    /// Exact upstream task revision
+    #[arg(long, default_value_t = 1)]
+    pub task_revision: u32,
+
+    /// UTF-8 file containing the complete upstream task source
     #[arg(long)]
-    pub query: Option<String>,
+    pub task_file: Option<String>,
+
+    /// Caller policy for modifying repository test files
+    #[arg(
+        long,
+        value_parser = ["allowed", "prohibited", "required", "unspecified"],
+        default_value = "unspecified"
+    )]
+    pub test_file_mutation_policy: String,
 }
 
 /// Options shared by `query` and `search`.
@@ -99,15 +107,15 @@ pub struct QueryInputArgs {
     #[arg(long)]
     pub budget: Option<u32>,
 
-    /// Request extra server-side profiling for diagnostics
-    #[arg(long)]
-    pub enable_profiling: bool,
-
-    /// Number of top cumulative hotspots when profiling
-    #[arg(long, default_value_t = 20)]
-    pub profiling_top_n: u32,
-
     /// Response format: structured bundle (default) or legacy ContextPackage JSON
     #[arg(long, value_parser = ["bundle", "legacy"])]
     pub response_format: Option<String>,
+
+    /// Task authority association; defaults to FORMSY_TASK_ID when set
+    #[arg(long)]
+    pub task_id: Option<String>,
+
+    /// Exact task revision; defaults to FORMSY_TASK_REVISION when set
+    #[arg(long)]
+    pub task_revision: Option<u32>,
 }

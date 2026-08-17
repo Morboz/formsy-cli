@@ -40,9 +40,25 @@ pub struct SearchCmd {
     #[arg(long, value_parser = ["merge", "replace"], default_value = "merge")]
     pub mode: String,
 
-    /// Disable semantic ingestion (W2) for the compile leg
+    /// Stable upstream task identifier; requires --task-file
     #[arg(long)]
-    pub no_w2: bool,
+    pub task_id: Option<String>,
+
+    /// Exact upstream task revision
+    #[arg(long, default_value_t = 1)]
+    pub task_revision: u32,
+
+    /// UTF-8 file containing the complete upstream task source
+    #[arg(long)]
+    pub task_file: Option<String>,
+
+    /// Caller policy for modifying repository test files
+    #[arg(
+        long,
+        value_parser = ["allowed", "prohibited", "required", "unspecified"],
+        default_value = "unspecified"
+    )]
+    pub test_file_mutation_policy: String,
 
     /// Override the revision used for the query leg (defaults to the revision returned by compile)
     #[arg(long)]
@@ -67,14 +83,6 @@ pub struct SearchCmd {
     #[arg(long)]
     pub budget: Option<u32>,
 
-    /// Request extra server-side profiling for diagnostics (query leg)
-    #[arg(long)]
-    pub enable_profiling: bool,
-
-    /// Number of top cumulative hotspots when profiling (query leg)
-    #[arg(long, default_value_t = 20)]
-    pub profiling_top_n: u32,
-
     /// Response format for the query leg: structured bundle (default) or legacy JSON
     #[arg(long, value_parser = ["bundle", "legacy"])]
     pub response_format: Option<String>,
@@ -93,21 +101,26 @@ fn compile_view(cmd: &SearchCmd) -> crate::commands::CompileInputArgs {
         mode: cmd.mode.clone(),
         // search's --revision targets the query leg, not the compile leg.
         revision: None,
-        no_w2: cmd.no_w2,
-        query: None,
+        task_id: cmd.task_id.clone(),
+        task_revision: cmd.task_revision,
+        task_file: cmd.task_file.clone(),
+        test_file_mutation_policy: cmd.test_file_mutation_policy.clone(),
     }
 }
 
 /// Adaptor exposing the query-leg flags as `QueryInputArgs` expects.
-fn query_view(cmd: &SearchCmd, resolved_revision: Option<String>) -> crate::commands::QueryInputArgs {
+fn query_view(
+    cmd: &SearchCmd,
+    resolved_revision: Option<String>,
+) -> crate::commands::QueryInputArgs {
     crate::commands::QueryInputArgs {
         query: cmd.query.clone(),
         revision: resolved_revision,
         intent: cmd.intent.clone(),
         budget: cmd.budget,
-        enable_profiling: cmd.enable_profiling,
-        profiling_top_n: cmd.profiling_top_n,
         response_format: cmd.response_format.clone(),
+        task_id: cmd.task_id.clone(),
+        task_revision: cmd.task_id.as_ref().map(|_| cmd.task_revision),
     }
 }
 
@@ -121,10 +134,14 @@ pub fn run(client: &FormsyClient, cmd: &SearchCmd) -> Result<()> {
             cmd.extensions
         ));
     }
-    eprintln!("[info] collected {} files from {:?}", files.len(), cmd.repo_root);
+    eprintln!(
+        "[info] collected {} files from {:?}",
+        files.len(),
+        cmd.repo_root
+    );
 
     // --- compile ---
-    let compile_req = build_compile_request(&compile_view(cmd), files);
+    let compile_req = build_compile_request(&compile_view(cmd), files)?;
     let compile_resp = client.compile(&compile_req)?;
     eprintln!(
         "[ok] compile repo_id={} revision={} parsed_file_count={}",
@@ -139,13 +156,13 @@ pub fn run(client: &FormsyClient, cmd: &SearchCmd) -> Result<()> {
     let query_input = query_view(cmd, resolved_revision);
 
     if cmd.json {
-        let query_req = build_query_request(&cmd.repo_id, &query_input);
+        let query_req = build_query_request(&cmd.repo_id, &query_input)?;
         let value = client.query_json(&query_req)?;
         println!("{}", serde_json::to_string_pretty(&value)?);
         return Ok(());
     }
 
-    let query_req = build_query_request(&cmd.repo_id, &query_input);
+    let query_req = build_query_request(&cmd.repo_id, &query_input)?;
     let query_resp = client.query(&query_req)?;
     if !query_resp.error_code.is_empty() {
         eprintln!(
@@ -157,12 +174,13 @@ pub fn run(client: &FormsyClient, cmd: &SearchCmd) -> Result<()> {
         eprintln!("[guidance] {}", query_resp.agent_guidance_text);
     }
     if query_resp.extra_context.trim().is_empty() {
-        println!(
-            "[ok] query returned empty extra_context (coverage={}, next={})",
-            query_resp.coverage, query_resp.preferred_next_step
-        );
+        println!("[ok] query returned empty extra_context");
     } else {
         println!("{}", query_resp.extra_context);
     }
+    println!(
+        "[status] coverage={} next={}",
+        query_resp.coverage, query_resp.preferred_next_step
+    );
     Ok(())
 }
