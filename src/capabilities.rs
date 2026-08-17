@@ -6,6 +6,9 @@ pub const CAPABILITY_SCHEMA_VERSION: &str = "formsy.cli_capabilities.v1";
 pub const CAPABILITIES: &[&str] = &[
     "compile.task_source.v1",
     "compile.test_file_mutation_policy.v1",
+    "graph.get_neighbors.v1",
+    "graph.get_node_detail.v1",
+    "graph.search_nodes.v1",
     "query.task_identity.v1",
     "source.auto_extensions.v1",
 ];
