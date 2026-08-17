@@ -4,6 +4,7 @@ use serde::Serialize;
 
 pub const CAPABILITY_SCHEMA_VERSION: &str = "formsy.cli_capabilities.v1";
 pub const CAPABILITIES: &[&str] = &[
+    "compile.snapshot_reuse.v1",
     "compile.task_source.v1",
     "compile.test_file_mutation_policy.v1",
     "graph.get_neighbors.v1",

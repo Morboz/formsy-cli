@@ -49,7 +49,8 @@ fn is_default_language(lang: &str) -> bool {
     lang == "python"
 }
 
-/// `CompileRequest`. `files` is required and must be non-empty (server validates).
+/// `CompileRequest`. Empty `files` requests task compilation against an exact,
+/// already-compiled repository revision.
 #[derive(Debug, Clone, Serialize)]
 pub struct CompileRequest {
     pub repo_id: String,

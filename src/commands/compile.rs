@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use clap::Args;
 
-use crate::client::FormsyClient;
+use crate::client::{has_http_status, FormsyClient};
 use crate::collect::collect_source_files;
 use crate::commands::CompileInputArgs;
 use crate::models::{CompileRequest, TaskSourcePayload};
@@ -21,6 +21,35 @@ pub struct CompileCmd {
 }
 
 pub fn run(client: &FormsyClient, cmd: &CompileCmd) -> Result<()> {
+    let mut request = build_request(&cmd.input, Vec::new())?;
+    let can_reuse_snapshot = request.revision.is_some() && request.task_source.is_some();
+    if can_reuse_snapshot {
+        if cmd.json {
+            match client.compile_json(&request) {
+                Ok(value) => {
+                    println!("{}", serde_json::to_string_pretty(&value)?);
+                    return Ok(());
+                }
+                Err(error) if has_http_status(&error, 404) => {}
+                Err(error) => return Err(error),
+            }
+        } else {
+            match client.compile(&request) {
+                Ok(response) => {
+                    print_compile_summary(&response);
+                    return Ok(());
+                }
+                Err(error) if has_http_status(&error, 404) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        eprintln!(
+            "[info] snapshot {}@{} is not compiled; collecting repository source",
+            request.repo_id,
+            request.revision.as_deref().unwrap_or_default()
+        );
+    }
+
     let files = collect_source_files(Path::new(&cmd.input.repo_root), &cmd.input.extensions)
         .context("collecting source files")?;
     if files.is_empty() {
@@ -36,7 +65,7 @@ pub fn run(client: &FormsyClient, cmd: &CompileCmd) -> Result<()> {
         cmd.input.repo_root
     );
 
-    let request = build_request(&cmd.input, files)?;
+    request.files = files;
 
     if cmd.json {
         let value = client.compile_json(&request)?;
@@ -45,11 +74,15 @@ pub fn run(client: &FormsyClient, cmd: &CompileCmd) -> Result<()> {
     }
 
     let resp = client.compile(&request)?;
+    print_compile_summary(&resp);
+    Ok(())
+}
+
+fn print_compile_summary(resp: &crate::models::CompileResponse) {
     println!(
         "[ok] compile repo_id={} revision={} parsed_file_count={}",
         resp.repo_id, resp.revision, resp.parsed_file_count
     );
-    Ok(())
 }
 
 /// Build a `CompileRequest` from shared input args (used by `search` too).

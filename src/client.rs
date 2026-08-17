@@ -4,6 +4,7 @@
 //! sends `Authorization: Bearer <api_key>` when a key is set, and surfaces non-2xx
 //! responses as `failed with HTTP {status}: {body}`.
 
+use std::fmt;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
@@ -22,6 +23,33 @@ use crate::models::{
 pub struct FormsyClient {
     base_url: Url,
     http: Client,
+}
+
+#[derive(Debug)]
+pub struct HttpStatusError {
+    status: u16,
+    path: String,
+    body: String,
+}
+
+impl fmt::Display for HttpStatusError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "request to {} failed with HTTP {}: {}",
+            self.path, self.status, self.body
+        )
+    }
+}
+
+impl std::error::Error for HttpStatusError {}
+
+pub fn has_http_status(error: &anyhow::Error, expected: u16) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<HttpStatusError>()
+            .is_some_and(|http_error| http_error.status == expected)
+    })
 }
 
 impl FormsyClient {
@@ -59,7 +87,12 @@ impl FormsyClient {
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().unwrap_or_default();
-            return Err(anyhow!("request to {path} failed with HTTP {status}: {text}"));
+            return Err(HttpStatusError {
+                status: status.as_u16(),
+                path: path.to_string(),
+                body: text,
+            }
+            .into());
         }
         let value: serde_json::Value = resp.json()?;
         serde_json::from_value(value).map_err(|e| {
@@ -113,5 +146,26 @@ impl FormsyClient {
         request: &GetNodeDetailRequest,
     ) -> Result<serde_json::Value> {
         self.post("/api/v1/get_node_detail", request)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+
+    use super::{has_http_status, HttpStatusError};
+
+    #[test]
+    fn http_status_errors_remain_typed_through_anyhow_context() {
+        let error = anyhow::Error::new(HttpStatusError {
+            status: 404,
+            path: "/api/v1/compile".to_string(),
+            body: "snapshot missing".to_string(),
+        })
+        .context("task-only compile failed");
+
+        assert!(has_http_status(&error, 404));
+        assert!(!has_http_status(&error, 409));
+        assert!(!has_http_status(&anyhow!("plain failure"), 404));
     }
 }
