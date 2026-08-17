@@ -14,6 +14,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::client::FormsyClient;
+use crate::commands::graph::{GetNeighborsCmd, GetNodeDetailCmd, SearchNodesCmd};
 use crate::commands::{compile::CompileCmd, query::QueryCmd, search::SearchCmd, GlobalArgs};
 
 #[derive(Parser, Debug)]
@@ -49,6 +50,12 @@ enum Command {
     Query(QueryCmd),
     /// Compile then query in one shot (compile → query)
     Search(SearchCmd),
+    /// POST /api/v1/search_nodes — fuzzy-search graph symbols
+    SearchNodes(SearchNodesCmd),
+    /// POST /api/v1/get_neighbors — call-graph callers/callees of a node
+    GetNeighbors(GetNeighborsCmd),
+    /// POST /api/v1/get_node_detail — full detail for one node
+    GetNodeDetail(GetNodeDetailCmd),
 }
 
 fn main() -> Result<()> {
@@ -64,6 +71,9 @@ fn main() -> Result<()> {
         Command::Compile(cmd) => commands::compile::run(&client, &cmd)?,
         Command::Query(cmd) => commands::query::run(&client, &cmd)?,
         Command::Search(cmd) => commands::search::run(&client, &cmd)?,
+        Command::SearchNodes(cmd) => commands::graph::run_search_nodes(&client, &cmd)?,
+        Command::GetNeighbors(cmd) => commands::graph::run_get_neighbors(&client, &cmd)?,
+        Command::GetNodeDetail(cmd) => commands::graph::run_get_node_detail(&client, &cmd)?,
     }
     Ok(())
 }

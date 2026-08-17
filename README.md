@@ -1,9 +1,10 @@
 # formsy-cli (`fsy`)
 
 Rust CLI client for the `formsy.server` HTTP API (`packages/server/src/formsy/server/routes/code.py`).
-Covers the two endpoints requested today — `/api/v1/compile` and `/api/v1/query` — plus a
-combined `search` subcommand that replays the compile → query flow from
-`scripts/e2e_server_compile_query.py`.
+Covers `/api/v1/compile` and `/api/v1/query` (plus a combined `search` subcommand that
+replays the compile → query flow from `scripts/e2e_server_compile_query.py`), and three
+graph-inspection subcommands — `search-nodes`, `get-neighbors`, `get-node-detail` — that
+locate symbols and walk the call graph of a compiled repository.
 
 ## Install / build
 
@@ -69,6 +70,45 @@ prints a summary. Equivalent to the e2e script's compile → query leg.
 fsy search --repo-id my-repo --repo-root ./packages/server/src \
   --query "Where are the compile and query endpoints implemented?"
 ```
+
+### `fsy search-nodes` — fuzzy-search graph symbols
+
+POSTs `/api/v1/search_nodes`: fuzzy/natural-language search over the compiled repo's
+functions, classes, and other graph nodes. Returns lightweight node identities
+(`id`, `kind`, `qualified_name`, `file_path`, `start_line`, `signature`) whose `id`
+feeds `get-neighbors` / `get-node-detail`.
+
+```bash
+fsy search-nodes --repo-id my-repo --query "gzip decompress urls.py"
+fsy search-nodes --repo-id my-repo --query "fetch_url" --limit 20 --json
+```
+
+Flags: `--repo-id`, `--query`, `--limit` (default 10), `--revision`, `--json`.
+
+### `fsy get-neighbors` — call-graph callers/callees
+
+POSTs `/api/v1/get_neighbors`: upstream/downstream call graph for one node id.
+`--direction callers` = who calls it, `callees` = what it calls, `both` (default).
+`--max-depth` extends the traversal beyond direct edges.
+
+```bash
+fsy get-neighbors --repo-id my-repo --node-id "<id from search-nodes>" --direction callers
+fsy get-neighbors --repo-id my-repo --node-id "<id>" --direction both --max-depth 2
+```
+
+Flags: `--repo-id`, `--node-id`, `--direction callers|callees|both`, `--max-depth`
+(default 1), `--revision`, `--json`.
+
+### `fsy get-node-detail` — full detail for one node
+
+POSTs `/api/v1/get_node_detail`: the full node record (signature, line span, language,
+docstring, async/static/abstract flags) for a single node id.
+
+```bash
+fsy get-node-detail --repo-id my-repo --node-id "<id>"
+```
+
+Flags: `--repo-id`, `--node-id`, `--revision`, `--json`.
 
 ## Output
 

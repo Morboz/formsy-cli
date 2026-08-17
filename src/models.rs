@@ -214,6 +214,201 @@ pub struct QueryResponse {
     pub extra: Value,
 }
 
+// ---------------------------------------------------------------------------
+// Graph inspection — /api/v1/search_nodes, /get_neighbors, /get_node_detail
+// ---------------------------------------------------------------------------
+
+/// `SearchNodesRequest`. `repo_id` + `query` are required.
+#[derive(Debug, Clone, Serialize)]
+pub struct SearchNodesRequest {
+    pub repo_id: String,
+    pub query: String,
+    #[serde(default = "default_search_limit", skip_serializing_if = "is_default_search_limit")]
+    pub limit: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+}
+
+fn default_search_limit() -> u32 {
+    10
+}
+
+fn is_default_search_limit(limit: &u32) -> bool {
+    *limit == 10
+}
+
+impl SearchNodesRequest {
+    pub fn new(repo_id: impl Into<String>, query: impl Into<String>) -> Self {
+        Self {
+            repo_id: repo_id.into(),
+            query: query.into(),
+            limit: default_search_limit(),
+            revision: None,
+        }
+    }
+}
+
+/// `GetNeighborsRequest`. `repo_id` + `node_id` are required.
+#[derive(Debug, Clone, Serialize)]
+pub struct GetNeighborsRequest {
+    pub repo_id: String,
+    pub node_id: String,
+    #[serde(default = "default_direction", skip_serializing_if = "is_default_direction")]
+    pub direction: String,
+    #[serde(default = "default_max_depth", skip_serializing_if = "is_default_max_depth")]
+    pub max_depth: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+}
+
+fn default_direction() -> String {
+    "both".to_string()
+}
+
+fn is_default_direction(direction: &str) -> bool {
+    direction == "both"
+}
+
+fn default_max_depth() -> u32 {
+    1
+}
+
+fn is_default_max_depth(depth: &u32) -> bool {
+    *depth == 1
+}
+
+impl GetNeighborsRequest {
+    pub fn new(repo_id: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self {
+            repo_id: repo_id.into(),
+            node_id: node_id.into(),
+            direction: default_direction(),
+            max_depth: default_max_depth(),
+            revision: None,
+        }
+    }
+}
+
+/// `GetNodeDetailRequest`. `repo_id` + `node_id` are required.
+#[derive(Debug, Clone, Serialize)]
+pub struct GetNodeDetailRequest {
+    pub repo_id: String,
+    pub node_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+}
+
+impl GetNodeDetailRequest {
+    pub fn new(repo_id: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self {
+            repo_id: repo_id.into(),
+            node_id: node_id.into(),
+            revision: None,
+        }
+    }
+}
+
+/// Lightweight node identity shared by search results and neighbor listings.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct NodeSummary {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub qualified_name: String,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub start_line: i64,
+    #[serde(default)]
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct SearchNodesResponse {
+    #[serde(default)]
+    pub repo_id: String,
+    #[serde(default)]
+    pub revision: String,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub nodes: Vec<NodeSummary>,
+}
+
+/// One (node, edge) pair from a call-graph traversal.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct Neighbor {
+    pub node: NodeSummary,
+    #[serde(default)]
+    pub edge_kind: String,
+    #[serde(default)]
+    pub edge_line: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GetNeighborsResponse {
+    #[serde(default)]
+    pub repo_id: String,
+    #[serde(default)]
+    pub revision: String,
+    #[serde(default)]
+    pub node_id: String,
+    #[serde(default)]
+    pub direction: String,
+    #[serde(default)]
+    pub max_depth: i64,
+    #[serde(default)]
+    pub callers: Vec<Neighbor>,
+    #[serde(default)]
+    pub callees: Vec<Neighbor>,
+}
+
+/// Full node record returned by `get_node_detail`.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct NodeDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub qualified_name: String,
+    #[serde(default)]
+    pub file_path: String,
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub start_line: i64,
+    #[serde(default)]
+    pub end_line: i64,
+    #[serde(default)]
+    pub signature: String,
+    #[serde(default)]
+    pub docstring: String,
+    #[serde(default)]
+    pub visibility: Option<String>,
+    #[serde(default)]
+    pub is_async: bool,
+    #[serde(default)]
+    pub is_static: bool,
+    #[serde(default)]
+    pub is_abstract: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GetNodeDetailResponse {
+    #[serde(default)]
+    pub repo_id: String,
+    #[serde(default)]
+    pub revision: String,
+    pub node: NodeDetail,
+}
+
 #[cfg(test)]
 mod tests {
     use super::QueryResponse;

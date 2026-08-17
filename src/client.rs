@@ -13,7 +13,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use url::Url;
 
-use crate::models::{CompileRequest, CompileResponse, QueryRequest, QueryResponse};
+use crate::models::{
+    CompileRequest, CompileResponse, GetNeighborsRequest, GetNeighborsResponse,
+    GetNodeDetailRequest, GetNodeDetailResponse, QueryRequest, QueryResponse,
+    SearchNodesRequest, SearchNodesResponse,
+};
 
 pub struct FormsyClient {
     base_url: Url,
@@ -79,5 +83,35 @@ impl FormsyClient {
 
     pub fn query_json(&self, request: &QueryRequest) -> Result<serde_json::Value> {
         self.post("/api/v1/query", request)
+    }
+
+    pub fn search_nodes(&self, request: &SearchNodesRequest) -> Result<SearchNodesResponse> {
+        self.post("/api/v1/search_nodes", request)
+    }
+
+    pub fn search_nodes_json(&self, request: &SearchNodesRequest) -> Result<serde_json::Value> {
+        self.post("/api/v1/search_nodes", request)
+    }
+
+    pub fn get_neighbors(&self, request: &GetNeighborsRequest) -> Result<GetNeighborsResponse> {
+        self.post("/api/v1/get_neighbors", request)
+    }
+
+    pub fn get_neighbors_json(&self, request: &GetNeighborsRequest) -> Result<serde_json::Value> {
+        self.post("/api/v1/get_neighbors", request)
+    }
+
+    pub fn get_node_detail(
+        &self,
+        request: &GetNodeDetailRequest,
+    ) -> Result<GetNodeDetailResponse> {
+        self.post("/api/v1/get_node_detail", request)
+    }
+
+    pub fn get_node_detail_json(
+        &self,
+        request: &GetNodeDetailRequest,
+    ) -> Result<serde_json::Value> {
+        self.post("/api/v1/get_node_detail", request)
     }
 }
