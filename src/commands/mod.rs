@@ -44,8 +44,8 @@ pub struct CompileInputArgs {
     #[arg(long)]
     pub repo_root: String,
 
-    /// Comma-separated file extensions to ingest (default: py)
-    #[arg(long, value_delimiter = ',', default_value = "py")]
+    /// Optional comma-separated extension filter (default: auto-detect CodeGraph languages)
+    #[arg(long, value_delimiter = ',')]
     pub extensions: Vec<String>,
 
     /// How this compile updates the in-memory repo snapshot

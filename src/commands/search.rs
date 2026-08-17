@@ -32,8 +32,8 @@ pub struct SearchCmd {
     #[arg(long)]
     pub query: String,
 
-    /// Comma-separated file extensions to ingest (compile leg, default: py)
-    #[arg(long, value_delimiter = ',', default_value = "py")]
+    /// Optional extension filter (compile leg; default: auto-detect CodeGraph languages)
+    #[arg(long, value_delimiter = ',')]
     pub extensions: Vec<String>,
 
     /// How the compile leg updates the in-memory repo snapshot

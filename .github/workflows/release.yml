@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build and publish (for example, v0.1.1)
+        description: New, immutable tag to build and publish (for example, v0.2.0)
         required: true
         type: string
 
@@ -30,7 +30,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            build-essential ca-certificates curl git pkg-config
+            build-essential ca-certificates curl git pkg-config python3
 
       - name: Check out release tag
         uses: actions/checkout@v4
@@ -44,7 +44,39 @@ jobs:
         run: cargo test --locked
 
       - name: Build
-        run: cargo build --locked --release --target x86_64-unknown-linux-gnu
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::release checkout contains tracked modifications"
+            exit 1
+          fi
+          FSY_BUILD_GIT_COMMIT="$(git rev-parse HEAD)" \
+          FSY_BUILD_GIT_DIRTY=false \
+            cargo build --locked --release --target x86_64-unknown-linux-gnu
+
+      - name: Verify build identity and capabilities
+        shell: bash
+        run: |
+          binary="target/x86_64-unknown-linux-gnu/release/fsy"
+          expected_commit="$(git rev-parse HEAD)"
+          "${binary}" capabilities --json > capabilities.json
+          python3 - capabilities.json "${expected_commit}" <<'PY'
+          import json, sys
+
+          path, expected = sys.argv[1:]
+          payload = json.load(open(path, encoding="utf-8"))
+          required = {
+              "compile.task_source.v1",
+              "compile.test_file_mutation_policy.v1",
+              "query.task_identity.v1",
+              "source.auto_extensions.v1",
+          }
+          assert payload.get("schema_version") == "formsy.cli_capabilities.v1"
+          assert payload.get("git_commit") == expected
+          assert payload.get("git_dirty") == "false"
+          assert payload.get("target") == "x86_64-unknown-linux-gnu"
+          assert required <= set(payload.get("capabilities", []))
+          PY
 
       - name: Verify Ubuntu 20.04 compatibility
         shell: bash
@@ -108,7 +140,15 @@ jobs:
         run: cargo test --locked
 
       - name: Build
-        run: cargo build --locked --release --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "::error::release checkout contains tracked modifications"
+            exit 1
+          fi
+          FSY_BUILD_GIT_COMMIT="$(git rev-parse HEAD)" \
+          FSY_BUILD_GIT_DIRTY=false \
+            cargo build --locked --release --target ${{ matrix.target }}
 
       - name: Package Unix binary
         if: runner.os != 'Windows'
@@ -154,7 +194,7 @@ jobs:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release/* --clobber
-          else
-            gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "$RELEASE_TAG"
+            echo "::error::release ${RELEASE_TAG} already exists; release assets are immutable"
+            exit 1
           fi
+          gh release create "$RELEASE_TAG" release/* --verify-tag --generate-notes --title "$RELEASE_TAG"
