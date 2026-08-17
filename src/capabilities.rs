@@ -25,26 +25,31 @@ pub struct CapabilityDocument {
     pub schema_version: &'static str,
     pub cli_version: &'static str,
     pub git_commit: &'static str,
-    pub git_dirty: &'static str,
+    pub git_dirty: bool,
     pub target: &'static str,
     pub capabilities: &'static [&'static str],
 }
 
 impl CapabilityDocument {
-    pub fn current() -> Self {
-        Self {
+    pub fn current() -> Result<Self> {
+        let git_dirty = match env!("FSY_BUILD_GIT_DIRTY") {
+            "true" => true,
+            "false" => false,
+            value => anyhow::bail!("build dirty state is unavailable: {value}"),
+        };
+        Ok(Self {
             schema_version: CAPABILITY_SCHEMA_VERSION,
             cli_version: env!("CARGO_PKG_VERSION"),
             git_commit: env!("FSY_BUILD_GIT_COMMIT"),
-            git_dirty: env!("FSY_BUILD_GIT_DIRTY"),
+            git_dirty,
             target: env!("FSY_BUILD_TARGET"),
             capabilities: CAPABILITIES,
-        }
+        })
     }
 }
 
 pub fn run(cmd: &CapabilitiesCmd) -> Result<()> {
-    let document = CapabilityDocument::current();
+    let document = CapabilityDocument::current()?;
     if cmd.json {
         println!("{}", serde_json::to_string_pretty(&document)?);
     } else {
@@ -65,13 +70,13 @@ mod tests {
 
     #[test]
     fn capability_document_is_machine_stable_and_build_identified() {
-        let document = CapabilityDocument::current();
+        let document = CapabilityDocument::current().expect("known build dirty state");
         let value = serde_json::to_value(&document).expect("serialize capabilities");
 
         assert_eq!(value["schema_version"], CAPABILITY_SCHEMA_VERSION);
         assert_eq!(value["cli_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(value["git_commit"], env!("FSY_BUILD_GIT_COMMIT"));
-        assert_eq!(value["git_dirty"], env!("FSY_BUILD_GIT_DIRTY"));
+        assert_eq!(value["git_dirty"], document.git_dirty);
         assert_eq!(value["target"], env!("FSY_BUILD_TARGET"));
         assert_eq!(value["capabilities"], serde_json::json!(CAPABILITIES));
     }

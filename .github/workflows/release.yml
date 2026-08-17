@@ -73,7 +73,7 @@ jobs:
           }
           assert payload.get("schema_version") == "formsy.cli_capabilities.v1"
           assert payload.get("git_commit") == expected
-          assert payload.get("git_dirty") == "false"
+          assert payload.get("git_dirty") is False
           assert payload.get("target") == "x86_64-unknown-linux-gnu"
           assert required <= set(payload.get("capabilities", []))
           PY
