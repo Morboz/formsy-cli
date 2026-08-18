@@ -16,8 +16,8 @@ use url::Url;
 
 use crate::models::{
     CompileRequest, CompileResponse, GetNeighborsRequest, GetNeighborsResponse,
-    GetNodeDetailRequest, GetNodeDetailResponse, QueryRequest, QueryResponse,
-    SearchNodesRequest, SearchNodesResponse,
+    GetNodeDetailRequest, GetNodeDetailResponse, QueryRequest, QueryResponse, SearchNodesRequest,
+    SearchNodesResponse,
 };
 
 pub struct FormsyClient {
@@ -54,8 +54,8 @@ pub fn has_http_status(error: &anyhow::Error, expected: u16) -> bool {
 
 impl FormsyClient {
     pub fn new(base_url: String, api_key: Option<String>, timeout: Duration) -> Result<Self> {
-        let base_url = Url::parse(&base_url)
-            .map_err(|e| anyhow!("invalid --base-url {base_url:?}: {e}"))?;
+        let base_url =
+            Url::parse(&base_url).map_err(|e| anyhow!("invalid --base-url {base_url:?}: {e}"))?;
 
         let mut headers = HeaderMap::new();
         if let Some(key) = &api_key {
@@ -95,9 +95,8 @@ impl FormsyClient {
             .into());
         }
         let value: serde_json::Value = resp.json()?;
-        serde_json::from_value(value).map_err(|e| {
-            anyhow!("could not decode response from {path} as JSON: {e}")
-        })
+        serde_json::from_value(value)
+            .map_err(|e| anyhow!("could not decode response from {path} as JSON: {e}"))
     }
 
     pub fn compile(&self, request: &CompileRequest) -> Result<CompileResponse> {
@@ -134,10 +133,7 @@ impl FormsyClient {
         self.post("/api/v1/get_neighbors", request)
     }
 
-    pub fn get_node_detail(
-        &self,
-        request: &GetNodeDetailRequest,
-    ) -> Result<GetNodeDetailResponse> {
+    pub fn get_node_detail(&self, request: &GetNodeDetailRequest) -> Result<GetNodeDetailResponse> {
         self.post("/api/v1/get_node_detail", request)
     }
 

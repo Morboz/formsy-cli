@@ -224,7 +224,10 @@ pub struct QueryResponse {
 pub struct SearchNodesRequest {
     pub repo_id: String,
     pub query: String,
-    #[serde(default = "default_search_limit", skip_serializing_if = "is_default_search_limit")]
+    #[serde(
+        default = "default_search_limit",
+        skip_serializing_if = "is_default_search_limit"
+    )]
     pub limit: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
@@ -254,9 +257,15 @@ impl SearchNodesRequest {
 pub struct GetNeighborsRequest {
     pub repo_id: String,
     pub node_id: String,
-    #[serde(default = "default_direction", skip_serializing_if = "is_default_direction")]
+    #[serde(
+        default = "default_direction",
+        skip_serializing_if = "is_default_direction"
+    )]
     pub direction: String,
-    #[serde(default = "default_max_depth", skip_serializing_if = "is_default_max_depth")]
+    #[serde(
+        default = "default_max_depth",
+        skip_serializing_if = "is_default_max_depth"
+    )]
     pub max_depth: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,

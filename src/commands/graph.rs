@@ -124,7 +124,10 @@ pub fn run_get_neighbors(client: &FormsyClient, cmd: &GetNeighborsCmd) -> Result
 
     let resp = client.get_neighbors(&request)?;
     if resp.callers.is_empty() && resp.callees.is_empty() {
-        println!("[ok] no {} found for node {:?}", resp.direction, resp.node_id);
+        println!(
+            "[ok] no {} found for node {:?}",
+            resp.direction, resp.node_id
+        );
         return Ok(());
     }
     print_neighbor_section("callers", &resp.callers);
@@ -146,7 +149,10 @@ pub fn run_get_node_detail(client: &FormsyClient, cmd: &GetNodeDetailCmd) -> Res
     let node = resp.node;
     println!("[ok] {} {} ({})", node.kind, node.name, node.qualified_name);
     println!("  id:       {}", node.id);
-    println!("  location: {}:{}-{}", node.file_path, node.start_line, node.end_line);
+    println!(
+        "  location: {}:{}-{}",
+        node.file_path, node.start_line, node.end_line
+    );
     println!("  language: {}", node.language);
     if !node.signature.is_empty() {
         println!("  signature: {}", node.signature);
