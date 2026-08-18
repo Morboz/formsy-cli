@@ -41,7 +41,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Verify
-        run: cargo test --locked
+        env:
+          FSY_BUILD_GIT_DIRTY: "false"
+        run: |
+          export FSY_BUILD_GIT_COMMIT="${FSY_BUILD_GIT_COMMIT:-$(git rev-parse HEAD)}"
+          cargo test --locked
 
       - name: Build
         shell: bash
@@ -137,7 +141,11 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Verify
-        run: cargo test --locked
+        env:
+          FSY_BUILD_GIT_DIRTY: "false"
+        run: |
+          export FSY_BUILD_GIT_COMMIT="${FSY_BUILD_GIT_COMMIT:-$(git rev-parse HEAD)}"
+          cargo test --locked
 
       - name: Build
         shell: bash
