@@ -205,14 +205,38 @@ pub struct QueryResponse {
     #[serde(default)]
     pub coverage: String,
     #[serde(default)]
-    pub agent_guidance_text: String,
+    pub guidance: QueryGuidance,
     #[serde(default)]
     pub error_code: String,
     /// Everything else (`context_package`, `bundle`, `query_plan`, `matches`,
-    /// `test_constraints`, `guidance`, `query_profile`, `store_stats`, ...).
+    /// `test_constraints`, `task_authority`, `query_profile`, `store_stats`, ...).
     /// Kept as raw JSON so the CLI never breaks on server-side field additions.
     #[serde(flatten)]
     pub extra: Value,
+}
+
+/// Query-specific actions that are useful in the Agent's current turn.
+///
+/// The server may also place the persisted task contract and test context in its
+/// `guidance` object. Those remain available through `--json`, but are intentionally
+/// not modeled here: the Agent already received them in the compile handoff and
+/// printing them again on every query would duplicate a potentially large payload.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct QueryGuidance {
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub decision: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub fallback_path: String,
+    #[serde(default)]
+    pub preferred_next_step: String,
+    #[serde(default)]
+    pub required_next_actions: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------

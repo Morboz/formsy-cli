@@ -16,7 +16,7 @@ use clap::Args;
 use crate::client::FormsyClient;
 use crate::collect::collect_source_files;
 use crate::commands::compile::build_request as build_compile_request;
-use crate::commands::query::build_request as build_query_request;
+use crate::commands::query::{build_request as build_query_request, render_agent_guidance};
 
 #[derive(Args, Debug)]
 pub struct SearchCmd {
@@ -170,8 +170,8 @@ pub fn run(client: &FormsyClient, cmd: &SearchCmd) -> Result<()> {
             query_resp.error_code, query_resp.retrieval_state
         );
     }
-    if !query_resp.agent_guidance_text.is_empty() {
-        eprintln!("[guidance] {}", query_resp.agent_guidance_text);
+    if let Some(guidance) = render_agent_guidance(&query_resp.guidance) {
+        eprintln!("[guidance]\n{guidance}");
     }
     if query_resp.extra_context.trim().is_empty() {
         println!("[ok] query returned empty extra_context");

@@ -5,7 +5,7 @@ use clap::Args;
 
 use crate::client::FormsyClient;
 use crate::commands::QueryInputArgs;
-use crate::models::QueryRequest;
+use crate::models::{QueryGuidance, QueryRequest};
 
 #[derive(Args, Debug)]
 pub struct QueryCmd {
@@ -37,8 +37,8 @@ pub fn run(client: &FormsyClient, cmd: &QueryCmd) -> Result<()> {
             resp.error_code, resp.retrieval_state
         );
     }
-    if !resp.agent_guidance_text.is_empty() {
-        println!("[guidance] {}", resp.agent_guidance_text);
+    if let Some(guidance) = render_agent_guidance(&resp.guidance) {
+        println!("[guidance]\n{guidance}");
     }
     if resp.extra_context.trim().is_empty() {
         println!("[ok] query returned empty extra_context");
@@ -50,6 +50,38 @@ pub fn run(client: &FormsyClient, cmd: &QueryCmd) -> Result<()> {
         resp.coverage, resp.preferred_next_step
     );
     Ok(())
+}
+
+pub(crate) fn render_agent_guidance(guidance: &QueryGuidance) -> Option<String> {
+    let mut lines = Vec::new();
+    let identity = [
+        (!guidance.decision.is_empty()).then(|| format!("decision={}", guidance.decision)),
+        (!guidance.mode.is_empty()).then(|| format!("mode={}", guidance.mode)),
+        (!guidance.code.is_empty()).then(|| format!("code={}", guidance.code)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+    if !identity.is_empty() {
+        lines.push(identity.join(" "));
+    }
+    if !guidance.summary.is_empty() {
+        lines.push(guidance.summary.clone());
+    }
+    if !guidance.fallback_path.is_empty() {
+        lines.push(format!("fallback={}", guidance.fallback_path));
+    }
+    if !guidance.preferred_next_step.is_empty() {
+        lines.push(format!("next={}", guidance.preferred_next_step));
+    }
+    lines.extend(
+        guidance
+            .required_next_actions
+            .iter()
+            .filter(|action| !action.trim().is_empty())
+            .map(|action| format!("- {action}")),
+    );
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 /// Build a `QueryRequest` from a repo id + shared query input (used by `search` too).
@@ -87,8 +119,9 @@ pub fn build_request(repo_id: &str, input: &QueryInputArgs) -> Result<QueryReque
 
 #[cfg(test)]
 mod tests {
-    use super::build_request;
+    use super::{build_request, render_agent_guidance};
     use crate::commands::QueryInputArgs;
+    use crate::models::QueryResponse;
 
     #[test]
     fn explicit_task_association_is_sent_as_a_typed_pair() {
@@ -107,5 +140,49 @@ mod tests {
         assert_eq!(request.task_id.as_deref(), Some("task-1"));
         assert_eq!(request.task_revision, Some(3));
         assert_eq!(request.revision.as_deref(), Some("rev-1"));
+    }
+
+    #[test]
+    fn renders_only_query_specific_guidance() {
+        let response: QueryResponse = serde_json::from_value(serde_json::json!({
+            "guidance": {
+                "mode": "codegraph_unavailable_source_fallback",
+                "decision": "STOP_EXPLORATION",
+                "summary": "Use the compiled source fallback.",
+                "fallback_path": "compiled_source_plus_direct_query_matches",
+                "preferred_next_step": "bounded_source_inspection",
+                "required_next_actions": [
+                    "Read the ranked source files returned by context_search."
+                ],
+                "task_contract": {
+                    "behavior": ["A large compile-time contract must not be repeated."]
+                },
+                "test_context": {
+                    "source_obligations": ["Another compile-time payload."]
+                }
+            }
+        }))
+        .expect("query response");
+
+        let rendered = render_agent_guidance(&response.guidance).expect("guidance");
+        assert!(rendered.contains("decision=STOP_EXPLORATION"));
+        assert!(rendered.contains("mode=codegraph_unavailable_source_fallback"));
+        assert!(rendered.contains("next=bounded_source_inspection"));
+        assert!(rendered.contains("Read the ranked source files"));
+        assert!(!rendered.contains("large compile-time contract"));
+        assert!(!rendered.contains("source_obligations"));
+    }
+
+    #[test]
+    fn compile_time_only_guidance_is_not_repeated() {
+        let response: QueryResponse = serde_json::from_value(serde_json::json!({
+            "guidance": {
+                "task_contract": {"behavior": ["Preserve compatibility."]},
+                "test_context": {"file_mutation_policy": "prohibited"}
+            }
+        }))
+        .expect("query response");
+
+        assert_eq!(render_agent_guidance(&response.guidance), None);
     }
 }
