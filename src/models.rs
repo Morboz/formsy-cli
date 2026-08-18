@@ -27,10 +27,18 @@ use std::collections::BTreeMap;
 pub struct SourceFilePayload {
     pub path: String,
     pub content: String,
-    #[serde(default = "default_language", skip_serializing_if = "is_default_language")]
+    #[serde(
+        default = "default_language",
+        skip_serializing_if = "is_default_language"
+    )]
     pub language: String,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub is_test: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskSourcePayload {
+    pub task_id: String,
+    pub task_revision: u32,
+    pub full_task_description: String,
 }
 
 fn default_language() -> String {
@@ -41,7 +49,8 @@ fn is_default_language(lang: &str) -> bool {
     lang == "python"
 }
 
-/// `CompileRequest`. `files` is required and must be non-empty (server validates).
+/// `CompileRequest`. Empty `files` requests task compilation against an exact,
+/// already-compiled repository revision.
 #[derive(Debug, Clone, Serialize)]
 pub struct CompileRequest {
     pub repo_id: String,
@@ -50,18 +59,13 @@ pub struct CompileRequest {
     pub revision: Option<String>,
     #[serde(default = "default_mode", skip_serializing_if = "is_default_mode")]
     pub mode: String,
-    #[serde(default = "default_true", skip_serializing_if = "is_default_true")]
-    pub enable_w2: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_framework_plugins: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enabled_plugins: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_runtime_compiler: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_semantic_validation: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub query: Option<String>,
+    pub task_source: Option<TaskSourcePayload>,
+    #[serde(
+        default = "default_test_file_mutation_policy",
+        skip_serializing_if = "is_unspecified_test_file_mutation_policy"
+    )]
+    pub test_file_mutation_policy: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,12 +80,12 @@ fn is_default_mode(mode: &str) -> bool {
     mode == "merge"
 }
 
-fn default_true() -> bool {
-    true
+fn default_test_file_mutation_policy() -> String {
+    "unspecified".to_string()
 }
 
-fn is_default_true(b: &bool) -> bool {
-    *b
+fn is_unspecified_test_file_mutation_policy(policy: &str) -> bool {
+    policy == "unspecified"
 }
 
 impl CompileRequest {
@@ -92,12 +96,8 @@ impl CompileRequest {
             files,
             revision: None,
             mode: default_mode(),
-            enable_w2: true,
-            enable_framework_plugins: None,
-            enabled_plugins: None,
-            enable_runtime_compiler: None,
-            enable_semantic_validation: None,
-            query: None,
+            task_source: None,
+            test_file_mutation_policy: default_test_file_mutation_policy(),
             metadata: BTreeMap::new(),
             owner_id: None,
         }
@@ -115,19 +115,19 @@ pub struct QueryRequest {
     pub revision: Option<String>,
     #[serde(default = "default_budget", skip_serializing_if = "is_default_budget")]
     pub budget: u32,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub enable_profiling: bool,
-    #[serde(
-        default = "default_profiling_top_n",
-        skip_serializing_if = "is_default_profiling_top_n"
-    )]
-    pub profiling_top_n: u32,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_id: Option<String>,
-    #[serde(default = "default_response_format", skip_serializing_if = "is_default_response_format")]
+    #[serde(
+        default = "default_response_format",
+        skip_serializing_if = "is_default_response_format"
+    )]
     pub response_format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_revision: Option<u32>,
 }
 
 fn default_intent() -> String {
@@ -146,14 +146,6 @@ fn is_default_budget(b: &u32) -> bool {
     *b == 4000
 }
 
-fn default_profiling_top_n() -> u32 {
-    20
-}
-
-fn is_default_profiling_top_n(n: &u32) -> bool {
-    *n == 20
-}
-
 fn default_response_format() -> String {
     "bundle".to_string()
 }
@@ -170,11 +162,11 @@ impl QueryRequest {
             intent: default_intent(),
             revision: None,
             budget: default_budget(),
-            enable_profiling: false,
-            profiling_top_n: default_profiling_top_n(),
             metadata: BTreeMap::new(),
             owner_id: None,
             response_format: default_response_format(),
+            task_id: None,
+            task_revision: None,
         }
     }
 }
@@ -232,7 +224,10 @@ pub struct QueryResponse {
 pub struct SearchNodesRequest {
     pub repo_id: String,
     pub query: String,
-    #[serde(default = "default_search_limit", skip_serializing_if = "is_default_search_limit")]
+    #[serde(
+        default = "default_search_limit",
+        skip_serializing_if = "is_default_search_limit"
+    )]
     pub limit: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
@@ -262,9 +257,15 @@ impl SearchNodesRequest {
 pub struct GetNeighborsRequest {
     pub repo_id: String,
     pub node_id: String,
-    #[serde(default = "default_direction", skip_serializing_if = "is_default_direction")]
+    #[serde(
+        default = "default_direction",
+        skip_serializing_if = "is_default_direction"
+    )]
     pub direction: String,
-    #[serde(default = "default_max_depth", skip_serializing_if = "is_default_max_depth")]
+    #[serde(
+        default = "default_max_depth",
+        skip_serializing_if = "is_default_max_depth"
+    )]
     pub max_depth: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,

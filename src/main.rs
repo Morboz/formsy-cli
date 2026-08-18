@@ -2,6 +2,7 @@
 //!
 //! See `README.md` for usage. Subcommand logic lives in `commands/`.
 
+mod capabilities;
 mod client;
 mod collect;
 mod commands;
@@ -19,7 +20,15 @@ use crate::commands::{compile::CompileCmd, query::QueryCmd, search::SearchCmd, G
 #[derive(Parser, Debug)]
 #[command(
     name = "fsy",
-    version,
+    version = concat!(
+        env!("CARGO_PKG_VERSION"),
+        " commit=",
+        env!("FSY_BUILD_GIT_COMMIT"),
+        " dirty=",
+        env!("FSY_BUILD_GIT_DIRTY"),
+        " target=",
+        env!("FSY_BUILD_TARGET")
+    ),
     about = "Rust CLI client for formsy.server compile/query endpoints",
     long_about = None
 )]
@@ -33,6 +42,8 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Print immutable build identity and supported protocol capabilities
+    Capabilities(capabilities::CapabilitiesCmd),
     /// Collect source files and POST /api/v1/compile
     Compile(CompileCmd),
     /// POST /api/v1/query
@@ -56,6 +67,7 @@ fn main() -> Result<()> {
     )?;
 
     match cli.command {
+        Command::Capabilities(cmd) => capabilities::run(&cmd)?,
         Command::Compile(cmd) => commands::compile::run(&client, &cmd)?,
         Command::Query(cmd) => commands::query::run(&client, &cmd)?,
         Command::Search(cmd) => commands::search::run(&client, &cmd)?,

@@ -14,6 +14,17 @@ cargo build --release
 # binary: ./target/release/fsy
 ```
 
+Every build exposes its source identity and protocol capabilities. Automation must consume the
+JSON document instead of inferring compatibility from the package version alone:
+
+```bash
+fsy --version
+fsy capabilities --json
+```
+
+`--version` includes the Git commit, dirty state, and build target. `capabilities --json` is the
+machine contract used by runners before repository collection or any server/model request.
+
 ## Global options (apply to every subcommand)
 
 | flag | default | notes |
@@ -26,17 +37,19 @@ cargo build --release
 
 ### `fsy compile` — ingest source files
 
-Collects source files under `--repo-root` (recursive `*.py` by default) and posts them to
-`/api/v1/compile`. File collection mirrors `e2e_server_compile_query.py::collect_source_files`:
-`path` is repo-relative posix, `language="python"`, `is_test = "test" in filename`.
+Collects source files under `--repo-root` and posts them to `/api/v1/compile`. By default, file
+collection automatically includes the languages supported by CodeGraph. In Git worktrees it uses
+tracked files plus non-ignored working-tree files; ignored dependencies and build outputs are not
+uploaded. Use `--extensions` only to restrict or override that automatic selection. Payload paths
+are repo-relative POSIX paths and each file carries its detected source language.
 
 ```bash
 fsy compile --repo-id my-repo --repo-root ./packages/server/src
-fsy compile --repo-id my-repo --repo-root ./src --mode replace --no-w2 --json
+fsy compile --repo-id my-repo --repo-root ./src --mode replace --extensions py,ts --json
 ```
 
-Flags: `--repo-id`, `--repo-root`, `--mode merge|replace`, `--revision`, `--no-w2`,
-`--extensions py,tS` (default `py`), `--query`, `--json`.
+Flags: `--repo-id`, `--repo-root`, `--mode merge|replace`, `--revision`, `--extensions py,ts`,
+`--task-id`, `--task-revision`, `--task-file`, `--test-file-mutation-policy`, `--json`.
 
 ### `fsy query` — natural-language repo query
 
@@ -45,8 +58,8 @@ fsy query --repo-id my-repo --query "Where is compile_repo implemented?"
 fsy query --repo-id my-repo --revision <REV> --query "..." --intent symbol_definition --budget 6000
 ```
 
-Flags: `--repo-id`, `--query`, `--revision`, `--intent`, `--budget`, `--enable-profiling`,
-`--profiling-top-n`, `--response-format bundle|legacy`, `--json`.
+Flags: `--repo-id`, `--query`, `--revision`, `--intent`, `--budget`,
+`--response-format bundle|legacy`, `--task-id`, `--task-revision`, `--json`.
 
 ### `fsy search` — compile then query in one shot
 
